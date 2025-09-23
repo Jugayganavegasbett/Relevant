@@ -5,6 +5,7 @@
   }
   document.addEventListener("click",(e)=>{
     const b=e.target.closest(".tab"); if(!b) return;
+    if (b.id === "adminToggle") return; // manejado en app.js
     activate(b.dataset.target);
   });
   activate("tab-generales");
