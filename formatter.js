@@ -15,7 +15,7 @@ window.HRFMT = (function () {
     const g=d.generales||{};
     const f=g.fecha_hora||"";
     const dep=titleCase(g.dependencia||"");
-    aconst car=titleCase(g.caratula||"");
+    const car=titleCase(g.caratula||"");
     const tipo=g.tipoExp||"PU"; const num=(g.numExp||"").trim();
     const parts=[]; if(f) parts.push(f);
     if(num){ parts.push(`${tipo} ${num}`); if(dep) parts.push(dep); if(car) parts.push(car); }
@@ -66,13 +66,37 @@ window.HRFMT = (function () {
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
     const JUST=AlignmentType.JUSTIFIED; const built=buildAll(snap);
-    function mdRuns(str){ const parts=(str||"").split(/(\*|_)/g); let B=false,I=false; const out=[]; for(const p of parts){ if(p==="*"){ B=!B; continue; } if(p==="_"){ I=!I; continue; } if(!p) continue; out.push(new TextRun({text:p,bold:B,italics:I,underline:I?{}:undefined})); } return out; }
+
+    function mdRuns(str){
+      const parts=(str||"").split(/(\*|_)/g); let B=false,I=false; const out=[];
+      for(const p of parts){
+        if(p==="*"){ B=!B; continue; }
+        if(p==="_"){ I=!I; continue; }
+        if(!p) continue;
+        out.push(new TextRun({text:p,bold:B,italics:I,underline:I?{}:undefined}));
+      }
+      return out;
+    }
+
     const children=[];
     children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.titulo, bold:true}) ] }));
-    if(built.forDocx.subtitulo){ children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] })); }
-    (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=> children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} })));
-    const doc=new Document({ styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } }, sections:[{ children }] });
-    const blob=await Packer.toBlob(doc); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`Hecho_${new Date().toISOString().slice(0,10)}.docx`; a.click();
+    if(built.forDocx.subtitulo){
+      children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
+    }
+    (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
+      children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
+    });
+
+    const doc=new Document({
+      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
+      sections:[{ children }]
+    });
+
+    const blob=await Packer.toBlob(doc);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`Hecho_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
   }
 
   function downloadCSV(list){
@@ -90,5 +114,6 @@ window.HRFMT = (function () {
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
 
+  // API pública
   return { buildAll, downloadDocx, downloadCSV };
 })();
