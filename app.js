@@ -138,7 +138,7 @@ window.addEventListener("DOMContentLoaded", () => {
     const pos = (before + ins).length;
     ta.setSelectionRange(pos,pos);
     ta.focus();
-    renderTitlePreview(); // para mantener coherencia
+    renderTitlePreview();
     preview();
   }
 
