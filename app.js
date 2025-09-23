@@ -93,7 +93,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function fillPartidos(){
     const cat = getCatalogs();
-    aconst partidos = Object.keys(cat).sort((a,b)=>a.localeCompare(b));
+    const partidos = Object.keys(cat).sort((a,b)=>a.localeCompare(b));
     const sp = $("g_partido");
     const sc = $("cat_partidoSel");
     if (sp){
