@@ -69,7 +69,8 @@ window.HRFMT = (function () {
     const extracto = extractFirstParagraph(cuerpoExp);
 
     const waTitle = `*${tituloPlano}*`;
-    const waSub   = g.subtitulo ? `_${titleCase(g.subtitulo)}_` : "";
+    // CAMBIO: subtítulo en NEGRITA (antes itálica)
+    const waSub   = g.subtitulo ? `*${titleCase(g.subtitulo)}*` : "";
 
     // WhatsApp: 3 líneas (título / subtítulo / extracto)
     const waMulti = [waTitle, waSub, extracto].filter(Boolean).join("\n");
@@ -77,8 +78,8 @@ window.HRFMT = (function () {
     const waLong  = oneLine([waTitle, waSub, extracto].filter(Boolean).join(" "));
 
     return {
-      waLong,      // 1 línea (para checkbox "Sin saltos en WhatsApp")
-      waMulti,     // 3 líneas (título, subtítulo, extracto)
+      waLong,      // 1 línea
+      waMulti,     // 3 líneas
       html: waMulti,
       forDocx: {
         titulo: tituloPlano,
@@ -89,7 +90,7 @@ window.HRFMT = (function () {
     };
   }
 
-  // ===== Utilidades para Word (parsing * y _ a negrita/itálica, sin subrayado)
+  // ===== Utilidades para Word (parsing * y _ a negrita/itálica)
   function mdRunsFactory(TextRun){
     return function mdRuns(str){
       const parts=(str||"").split(/(\*|_)/g);
@@ -118,7 +119,7 @@ window.HRFMT = (function () {
     if(built.forDocx.subtitulo){
       children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
     }
-    // Cuerpo (respetando * y _)
+    // Cuerpo
     (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
       children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
     });
@@ -134,7 +135,7 @@ window.HRFMT = (function () {
     a.click();
   }
 
-  // ===== Word: varios casos en un solo archivo (uno debajo del otro)
+  // ===== Word: varios
   async function downloadDocxMulti(snaps, lib){
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
@@ -144,16 +145,13 @@ window.HRFMT = (function () {
     const children=[];
     (snaps||[]).forEach((snap, idx)=>{
       const b = buildAll(snap);
-      // Título y subtítulo
       children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.titulo, bold:true}) ] }));
       if(b.forDocx.subtitulo){
         children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.subtitulo, bold:true, color:b.forDocx.color}) ] }));
       }
-      // Cuerpo
       (b.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
         children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
       });
-      // Separador visual (sin salto de página)
       if (idx < snaps.length-1){
         children.push(new Paragraph({ children:[ new TextRun({ text:"" }) ], spacing:{after:300} }));
       }
@@ -170,7 +168,6 @@ window.HRFMT = (function () {
     a.click();
   }
 
-  // ===== CSV (por compatibilidad con app.js)
   function downloadCSV(list){
     const rows=[];
     rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"].join(","));
@@ -187,7 +184,6 @@ window.HRFMT = (function () {
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
 
-  // ===== Excel (.xlsx) opcional (si cargás XLSX en index.html)
   function downloadXLSX(list){
     if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
     const rows = [];
