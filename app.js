@@ -338,10 +338,10 @@ window.addEventListener("DOMContentLoaded", () => {
   const selectedChecks = ()=> Array.from(document.querySelectorAll(".caseCheck:checked")).map(c=> c.getAttribute("data-id"));
 
   // ====== Bind de inputs que afectan título/preview ======
-  $("g_partido")?.addEventListener("change", ()=>{ loadLocalidadesDeps(); renderTitlePreview(); });
-  $("g_dep")?.addEventListener("change", ()=>{ show("g_dep_manual_wrap", val("g_dep")==="__manual__"); renderTitlePreview(); });
-  ["g_fecha_dia","g_tipoExp","g_numExp","g_car","g_sub","g_ok","g_ufi","g_coord","g_dep_manual","g_localidad"]
-    .forEach(id=> $(id)?.addEventListener("input", renderTitlePreview));
+  $("g_partido")?.addEventListener("change", ()=>{ loadLocalidadesDeps(); renderTitlePreview(); preview(); });
+  $("g_dep")?.addEventListener("change", ()=>{ show("g_dep_manual_wrap", val("g_dep")==="__manual__"); renderTitlePreview(); preview(); });
+  ["g_fecha_dia","g_tipoExp","g_numExp","g_car","g_sub","g_ok","g_ufi","g_coord","g_dep_manual","g_localidad","cuerpo"]
+    .forEach(id=> $(id)?.addEventListener("input", ()=>{ renderTitlePreview(); preview(); }));
 
   // ====== Botones de personas/objetos ======
   $("addCivil")?.addEventListener("click", ()=>{ CIV.add(); });
@@ -350,11 +350,35 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // ====== Acciones principales ======
   $("generar")?.addEventListener("click", preview);
-  $("copiarWA")?.addEventListener("click", ()=>{
+
+  // Copiar a WhatsApp con fallback
+  $("copiarWA")?.addEventListener("click", async ()=>{
     const built = (window.HRFMT?.buildAll ? window.HRFMT.buildAll(buildData()) : null);
     if(!built) return;
-    navigator.clipboard.writeText(built.waLong).then(()=> alert("Copiado para WhatsApp"));
+    const text = built.waLong;
+
+    // 1) intento moderno
+    try{
+      await navigator.clipboard.writeText(text);
+      alert("Copiado para WhatsApp");
+      return;
+    }catch{}
+
+    // 2) fallback para file:// o HTTP
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position="fixed"; ta.style.left="-9999px";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if(ok){ alert("Copiado para WhatsApp"); return; }
+    }catch{}
+
+    alert("No pude copiar automáticamente. Seleccioná el texto en la previsualización y copiá con Ctrl+C.");
   });
+
   $("descargarWord")?.addEventListener("click", async ()=>{
     try{
       if (!window.HRFMT?.downloadDocx) throw new Error("formatter.js no cargado");
@@ -487,3 +511,4 @@ window.addEventListener("DOMContentLoaded", () => {
   loadCatEditor();
   applyAdminUI();
 });
+
