@@ -476,14 +476,14 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // === NUEVO: Word múltiple en un solo archivo
-  $("downloadWordMulti")?.addEventListener("click", async ()=>{
-    try{
-      const ids=selectedChecks();
-      const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
-      if (!window.HRFMT?.downloadDocxMulti) throw new Error("formatter.js sin soporte multi-Word");
-      await HRFMT.downloadDocxMulti(list, (window.docx||{}));
-    }catch(e){ alert(e.message||"No pude generar el Word múltiple"); }
-  });
+$("downloadWordMulti")?.addEventListener("click", async ()=>{
+  try{
+    const ids=selectedChecks();
+    const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
+    if (!window.HRFMT?.downloadDocxMulti) throw new Error("formatter.js sin soporte multi-Word");
+    await HRFMT.downloadDocxMulti(list, (window.docx||{}));
+  }catch(e){ alert(e.message||"No pude generar el Word múltiple"); }
+});
 
   // ====== Catálogos (ADMIN)
   $("cat_agregarPartido")?.addEventListener("click", ()=>{
