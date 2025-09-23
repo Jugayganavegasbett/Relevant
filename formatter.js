@@ -174,6 +174,30 @@ window.HRFMT = (function () {
     const blob=new Blob([rows.join("\n")],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
+// === Excel (.xlsx) ===
+function downloadXLSX(list){
+  if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
+  const rows = [];
+  rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"]);
+  (list||[]).forEach(s=>{
+    const g=s.generales||{};
+    rows.push([
+      s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"",
+      g.partido||"", g.localidad||"", g.dependencia||"",
+      g.caratula||"", g.subtitulo||"", (s.cuerpo||"") // Excel maneja saltos solo si luego activás wrap
+    ]);
+  });
 
-  return { buildAll, downloadDocx, downloadDocxMulti, downloadCSV };
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Ancho de columnas lindo
+  ws['!cols'] = [
+    {wch:30},{wch:10},{wch:6},{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:18},{wch:80}
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, "Hechos");
+
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  XLSX.writeFile(wb, `hechos_${ts}.xlsx`, { compression: true });
+}
+  return { buildAll, downloadDocx, downloadDocxMulti, downloadCSV, downloadXLSX };
 })();
