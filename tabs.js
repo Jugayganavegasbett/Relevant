@@ -10,4 +10,3 @@
   });
   activate("tab-generales");
 })();
-
