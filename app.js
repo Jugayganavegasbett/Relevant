@@ -547,6 +547,7 @@ window.addEventListener("DOMContentLoaded", () => {
  // ====== Exportar Excel (XLSX listo, con carga bajo demanda)
 async function ensureXLSX(){
   if (window.XLSX) return true;
+
   // 1er intento: jsDelivr
   const ok1 = await new Promise(res=>{
     const s=document.createElement('script');
@@ -569,10 +570,16 @@ async function ensureXLSX(){
 $("exportXLSX")?.addEventListener("click", async ()=>{
   const ids=selectedChecks();
   const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
-  if (!list.length){ alert("Nada para exportar"); return; }
+  if (!list.length){
+    alert("Nada para exportar");
+    return;
+  }
 
   const ok = await ensureXLSX();
-  if (!ok){ alert("No se pudo cargar SheetJS (XLSX). Verificá tu conexión e intentá de nuevo."); return; }
+  if (!ok){
+    alert("No se pudo cargar SheetJS (XLSX). Verificá tu conexión e intentá de nuevo.");
+    return;
+  }
 
   try{
     window.HRFMT.downloadXLSX(list);
@@ -580,6 +587,7 @@ $("exportXLSX")?.addEventListener("click", async ()=>{
     alert("No se pudo exportar XLSX: "+e.message);
   }
 });
+
 
   // ====== Catálogos (Admin)
   function loadCatEditor(){
