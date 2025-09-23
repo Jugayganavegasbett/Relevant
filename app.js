@@ -93,7 +93,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   function fillPartidos(){
     const cat = getCatalogs();
-    const partidos = Object.keys(cat).sort((a,b)=>a.localeCompare(b));
+    aconst partidos = Object.keys(cat).sort((a,b)=>a.localeCompare(b));
     const sp = $("g_partido");
     const sc = $("cat_partidoSel");
     if (sp){
@@ -544,41 +544,33 @@ window.addEventListener("DOMContentLoaded", () => {
     try{ window.HRFMT.downloadCSV(list); }catch(e){ alert("No se pudo exportar CSV: "+e.message); }
   });
 
-// ====== Exportar Excel (XLSX listo, con carga bajo demanda ROBUSTA)
-async function ensureXLSX(){
-  if (window.XLSX) return true;
+  // ====== Excel: usar copia local ya cargada en index.html
+  function whenXLSXReady(cb){
+    const btn = document.getElementById("exportXLSX");
+    if (btn) { btn.disabled = true; btn.title = "Cargando Excel..."; }
+    const start = Date.now();
+    (function tick(){
+      if (window.XLSX){
+        if (btn) { btn.disabled = false; btn.title = ""; }
+        cb();
+      }else if (Date.now() - start < 10000){
+        setTimeout(tick, 100);
+      }else{
+        alert("No se pudo inicializar Excel (XLSX). Verificá que exista vendor/xlsx.full.min.js.");
+        if (btn) { btn.disabled = false; btn.title = ""; }
+      }
+    })();
+  }
 
-  // Helper: carga un <script> con timeout
-  function loadScript(url, timeoutMs = 10000){
-    return new Promise((resolve)=>{
-      const s = document.createElement('script');
-      let done = false;
-      const t = setTimeout(()=>{ if(!done){ done = true; s.remove(); resolve(false); } }, timeoutMs);
-      s.src = url;
-      s.async = true;
-      s.crossOrigin = 'anonymous';
-      s.onload = ()=>{ if(!done){ done = true; clearTimeout(t); resolve(!!window.XLSX); } };
-      s.onerror = ()=>{ if(!done){ done = true; clearTimeout(t); resolve(false); } };
-      document.head.appendChild(s);
+  $("exportXLSX")?.addEventListener("click", ()=>{
+    whenXLSXReady(()=>{
+      const ids=selectedChecks();
+      const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
+      if (!list.length){ alert("Nada para exportar"); return; }
+      try{ window.HRFMT.downloadXLSX(list); }catch(e){ alert("No se pudo exportar XLSX: "+e.message); }
     });
-  }
+  });
 
-  // 3 CDNs + copia local como último recurso
-  const SOURCES = [
-    "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
-    "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
-    // Copia local (crear archivo, ver paso 2)
-    "vendor/xlsx.full.min.js"
-  ];
-
-  for (const src of SOURCES){
-    try { console.log("[XLSX] intentando cargar:", src); } catch {}
-    const ok = await loadScript(src);
-    if (ok) return true;
-  }
-  return false;
-}
   // ====== Catálogos (Admin)
   function loadCatEditor(){
     const p = val("cat_partidoSel"); const cat = getCatalogs();
@@ -694,3 +686,4 @@ async function ensureXLSX(){
   renderTagHelper(); renderTitlePreview(); preview();
   loadCatEditor(); applyAdminUI(); renderCases();
 });
+
