@@ -1,8 +1,8 @@
-// formatter.js — V9 (mejorado: formato personas + sin subrayado + multi-Word)
+// formatter.js — V9 PRO (WA multiline + personas bold/italic + Docx simple y múltiple)
 window.HRFMT = (function () {
   const titleCase = (s)=> (s||"").toLowerCase().replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi, (_,a,b)=> a.toUpperCase()+b);
   const nonEmpty = (x)=> (x??"").toString().trim().length>0;
-  const oneLineForWA = (t)=> (t||"").replace(/\s*\n+\s*/g," ").replace(/[ \t]{2,}/g," ").trim();
+  const oneLine = (t)=> (t||"").replace(/\s*\n+\s*/g," ").replace(/[ \t]{2,}/g," ").trim();
 
   // **_Nombre Apellido (edad, domicilio)_**
   const niceName = (p)=>{
@@ -49,16 +49,30 @@ window.HRFMT = (function () {
     return texto;
   }
 
+  function extractFirstParagraph(s){
+    const t = (s||"").trim();
+    if (!t) return "";
+    const firstPara = t.split(/\n{2,}/)[0].trim();
+    return oneLine(firstPara);
+  }
+
   function buildAll(data){
     const d=data||{}; const g=d.generales||{};
     const tituloPlano=buildTitulo(d);
     const cuerpoExp=expandTags(d, d.cuerpo||"");
-    const waBody=oneLineForWA(cuerpoExp);
-    const waTitle=`*${tituloPlano}*`;
-    const wa=`${waTitle} ${waBody}`.trim();
+    const extracto = extractFirstParagraph(cuerpoExp);
+    const waTitle = `*${tituloPlano}*`;
+    const waSub   = g.subtitulo ? `_${titleCase(g.subtitulo)}_` : "";
+
+    // WhatsApp: 3 líneas (título / subtítulo / extracto)
+    const waMulti = [waTitle, waSub, extracto].filter(Boolean).join("\n");
+    // WhatsApp: 1 línea (modo “Sin saltos”)
+    const waLong  = oneLine([waTitle, waSub, extracto].filter(Boolean).join(" "));
+
     return {
-      waLong: wa,
-      html: wa,
+      waLong,      // 1 línea
+      waMulti,     // 3 líneas
+      html: waMulti,
       forDocx: {
         titulo: tituloPlano,
         subtitulo: titleCase(g.subtitulo||""),
@@ -68,7 +82,7 @@ window.HRFMT = (function () {
     };
   }
 
-  // ===== Word: un caso =====
+  // ===== Docx: un caso
   async function downloadDocx(snap, lib){
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
@@ -96,10 +110,7 @@ window.HRFMT = (function () {
       children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
     });
 
-    const doc=new Document({
-      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
-      sections:[{ children }]
-    });
+    const doc=new Document({ styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } }, sections:[{ children }] });
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -107,8 +118,8 @@ window.HRFMT = (function () {
     a.click();
   }
 
-  // ===== Word: varios casos en un solo archivo =====
-  async function downloadDocxMulti(snaps, lib, opts={}){
+  // ===== Docx: varios casos en un solo archivo (uno debajo del otro)
+  async function downloadDocxMulti(snaps, lib){
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
     const JUST=AlignmentType.JUSTIFIED;
@@ -125,28 +136,23 @@ window.HRFMT = (function () {
       return out;
     }
 
-    const sectionsChildren=[];
+    const children=[];
     (snaps||[]).forEach((snap, idx)=>{
-      const built = buildAll(snap);
-      // Título
-      sectionsChildren.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.titulo, bold:true}) ] }));
-      if(built.forDocx.subtitulo){
-        sectionsChildren.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
+      const b = buildAll(snap);
+      children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.titulo, bold:true}) ] }));
+      if(b.forDocx.subtitulo){
+        children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.subtitulo, bold:true, color:b.forDocx.color}) ] }));
       }
-      // Cuerpo
-      (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
-        sectionsChildren.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
+      (b.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
+        children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
       });
-      // Separador: un vacío entre casos (sin salto de página)
       if (idx < snaps.length-1){
-        sectionsChildren.push(new Paragraph({ children:[ new TextRun({ text:"" }) ], spacing:{after:300} }));
+        // separador visual entre casos (sin salto de página)
+        children.push(new Paragraph({ children:[ new TextRun({ text:"" }) ], spacing:{after:300} }));
       }
     });
 
-    const doc=new Document({
-      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
-      sections:[{ children: sectionsChildren }]
-    });
+    const doc=new Document({ styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } }, sections:[{ children }] });
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
