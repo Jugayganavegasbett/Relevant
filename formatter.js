@@ -1,20 +1,24 @@
-// formatter.js — V9 PRO (WA multiline + personas bold/italic + Docx simple y múltiple)
+// formatter.js — V9 PRO (WA multiline + personas bold/italic + Docx simple y múltiple + CSV/XLSX)
 window.HRFMT = (function () {
-  const titleCase = (s)=> (s||"").toLowerCase().replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi, (_,a,b)=> a.toUpperCase()+b);
+  const titleCase = (s)=> (s||"")
+    .toLowerCase()
+    .replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi, (_,a,b)=> a.toUpperCase()+b);
+
   const nonEmpty = (x)=> (x??"").toString().trim().length>0;
   const oneLine = (t)=> (t||"").replace(/\s*\n+\s*/g," ").replace(/[ \t]{2,}/g," ").trim();
 
-  // **_Nombre Apellido (edad, domicilio)_**
+  // **_Nombre Apellido (edad, domicilio)_**  ← negrita + cursiva (sin subrayado)
   const niceName = (p)=>{
     const n = titleCase(p?.nombre||"");
     const a = titleCase(p?.apellido||"");
     const full = [n,a].filter(Boolean).join(" ");
+    if (!full) return "";
     const parts = [];
     if (p?.edad && String(p.edad).trim()) parts.push(String(p.edad).trim());
     const domBits = [p?.calle_domicilio, p?.loc_domicilio].map(x=> titleCase(x||"")).filter(Boolean);
     if (domBits.length) parts.push(domBits.join(", "));
     const paren = parts.length ? ` (${parts.join(", ")})` : "";
-    return full ? `*_${full}${paren}_*` : "";
+    return `*_${full}${paren}_*`;
   };
 
   function buildTitulo(d){
@@ -29,6 +33,7 @@ window.HRFMT = (function () {
     return parts.filter(nonEmpty).join(" - ");
   }
 
+  // Reemplazo de etiquetas (#victima:0, #pf, #secuestro, etc.)
   function expandTags(d, raw){
     const civ=d.civiles||[], fza=d.fuerzas||[], objs=d.objetos||[];
     const all=civ.concat(fza);
@@ -49,6 +54,7 @@ window.HRFMT = (function () {
     return texto;
   }
 
+  // Primer párrafo del cuerpo (para el extracto de WhatsApp)
   function extractFirstParagraph(s){
     const t = (s||"").trim();
     if (!t) return "";
@@ -61,6 +67,7 @@ window.HRFMT = (function () {
     const tituloPlano=buildTitulo(d);
     const cuerpoExp=expandTags(d, d.cuerpo||"");
     const extracto = extractFirstParagraph(cuerpoExp);
+
     const waTitle = `*${tituloPlano}*`;
     const waSub   = g.subtitulo ? `_${titleCase(g.subtitulo)}_` : "";
 
@@ -70,8 +77,8 @@ window.HRFMT = (function () {
     const waLong  = oneLine([waTitle, waSub, extracto].filter(Boolean).join(" "));
 
     return {
-      waLong,      // 1 línea
-      waMulti,     // 3 líneas
+      waLong,      // 1 línea (para checkbox "Sin saltos en WhatsApp")
+      waMulti,     // 3 líneas (título, subtítulo, extracto)
       html: waMulti,
       forDocx: {
         titulo: tituloPlano,
@@ -82,49 +89,9 @@ window.HRFMT = (function () {
     };
   }
 
-  // ===== Docx: un caso
-  async function downloadDocx(snap, lib){
-    const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
-    if(!Document) throw new Error("docx no cargada");
-    const JUST=AlignmentType.JUSTIFIED;
-    const built=buildAll(snap);
-
-    function mdRuns(str){
-      const parts=(str||"").split(/(\*|_)/g);
-      let B=false,I=false; const out=[];
-      for(const p of parts){
-        if(p==="*"){ B=!B; continue; }
-        if(p==="_"){ I=!I; continue; }
-        if(!p) continue;
-        out.push(new TextRun({ text:p, bold:B, italics:I })); // sin subrayado
-      }
-      return out;
-    }
-
-    const children=[];
-    children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.titulo, bold:true}) ] }));
-    if(built.forDocx.subtitulo){
-      children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
-    }
-    (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
-      children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
-    });
-
-    const doc=new Document({ styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } }, sections:[{ children }] });
-    const blob=await Packer.toBlob(doc);
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=`Hecho_${new Date().toISOString().slice(0,10)}.docx`;
-    a.click();
-  }
-
-  // ===== Docx: varios casos en un solo archivo (uno debajo del otro)
-  async function downloadDocxMulti(snaps, lib){
-    const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
-    if(!Document) throw new Error("docx no cargada");
-    const JUST=AlignmentType.JUSTIFIED;
-
-    function mdRuns(str){
+  // ===== Utilidades para Word (parsing * y _ a negrita/itálica, sin subrayado)
+  function mdRunsFactory(TextRun){
+    return function mdRuns(str){
       const parts=(str||"").split(/(\*|_)/g);
       let B=false,I=false; const out=[];
       for(const p of parts){
@@ -134,25 +101,68 @@ window.HRFMT = (function () {
         out.push(new TextRun({ text:p, bold:B, italics:I }));
       }
       return out;
+    };
+  }
+
+  // ===== Word: un caso
+  async function downloadDocx(snap, lib){
+    const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
+    if(!Document) throw new Error("docx no cargada");
+    const JUST=AlignmentType.JUSTIFIED;
+    const built=buildAll(snap);
+    const mdRuns = mdRunsFactory(TextRun);
+
+    const children=[];
+    // Título y subtítulo
+    children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.titulo, bold:true}) ] }));
+    if(built.forDocx.subtitulo){
+      children.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
     }
+    // Cuerpo (respetando * y _)
+    (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
+      children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
+    });
+
+    const doc=new Document({
+      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
+      sections:[{ children }]
+    });
+    const blob=await Packer.toBlob(doc);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`Hecho_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
+  }
+
+  // ===== Word: varios casos en un solo archivo (uno debajo del otro)
+  async function downloadDocxMulti(snaps, lib){
+    const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
+    if(!Document) throw new Error("docx no cargada");
+    const JUST=AlignmentType.JUSTIFIED;
+    const mdRuns = mdRunsFactory(TextRun);
 
     const children=[];
     (snaps||[]).forEach((snap, idx)=>{
       const b = buildAll(snap);
+      // Título y subtítulo
       children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.titulo, bold:true}) ] }));
       if(b.forDocx.subtitulo){
         children.push(new Paragraph({ children:[ new TextRun({text:b.forDocx.subtitulo, bold:true, color:b.forDocx.color}) ] }));
       }
+      // Cuerpo
       (b.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
         children.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
       });
+      // Separador visual (sin salto de página)
       if (idx < snaps.length-1){
-        // separador visual entre casos (sin salto de página)
         children.push(new Paragraph({ children:[ new TextRun({ text:"" }) ], spacing:{after:300} }));
       }
     });
 
-    const doc=new Document({ styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } }, sections:[{ children }] });
+    const doc=new Document({
+      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
+      sections:[{ children }]
+    });
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -160,6 +170,7 @@ window.HRFMT = (function () {
     a.click();
   }
 
+  // ===== CSV (por compatibilidad con app.js)
   function downloadCSV(list){
     const rows=[];
     rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"].join(","));
@@ -167,37 +178,37 @@ window.HRFMT = (function () {
       const g=s.generales||{};
       const esc=(x)=> '\"'+String(x || "").replace(/\"/g,'\\\"')+'\"';
       rows.push([
-        s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"", g.partido||"", g.localidad||"",
-        g.dependencia||"", g.caratula||"", g.subtitulo||"", (s.cuerpo||"").replace(/\n/g," \\n ")
+        s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"",
+        g.partido||"", g.localidad||"", g.dependencia||"",
+        g.caratula||"", g.subtitulo||"", (s.cuerpo||"").replace(/\n/g," \\n ")
       ].map(esc).join(","));
     });
     const blob=new Blob([rows.join("\n")],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
-// === Excel (.xlsx) ===
-function downloadXLSX(list){
-  if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
-  const rows = [];
-  rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"]);
-  (list||[]).forEach(s=>{
-    const g=s.generales||{};
-    rows.push([
-      s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"",
-      g.partido||"", g.localidad||"", g.dependencia||"",
-      g.caratula||"", g.subtitulo||"", (s.cuerpo||"") // Excel maneja saltos solo si luego activás wrap
-    ]);
-  });
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  // Ancho de columnas lindo
-  ws['!cols'] = [
-    {wch:30},{wch:10},{wch:6},{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:18},{wch:80}
-  ];
-  XLSX.utils.book_append_sheet(wb, ws, "Hechos");
+  // ===== Excel (.xlsx) opcional (si cargás XLSX en index.html)
+  function downloadXLSX(list){
+    if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
+    const rows = [];
+    rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"]);
+    (list||[]).forEach(s=>{
+      const g=s.generales||{};
+      rows.push([
+        s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"",
+        g.partido||"", g.localidad||"", g.dependencia||"",
+        g.caratula||"", g.subtitulo||"", (s.cuerpo||"")
+      ]);
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+      {wch:30},{wch:10},{wch:6},{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:18},{wch:80}
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, "Hechos");
+    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+    XLSX.writeFile(wb, `hechos_${ts}.xlsx`, { compression: true });
+  }
 
-  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
-  XLSX.writeFile(wb, `hechos_${ts}.xlsx`, { compression: true });
-}
   return { buildAll, downloadDocx, downloadDocxMulti, downloadCSV, downloadXLSX };
 })();
