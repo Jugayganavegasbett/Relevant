@@ -355,9 +355,27 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
   function preview(){
-    const built = (window.HRFMT?.buildAll ? window.HRFMT.buildAll(buildData()) : null);
-    if (built && $("previewHtml")) $("previewHtml").textContent = built.waLong;
-  }
+  const built = (window.HRFMT?.buildAll ? window.HRFMT.buildAll(buildData()) : null);
+  if (!built || !$("previewHtml")) return;
+  const merge = $("wa_merge")?.checked ?? true; // true = 1 línea
+  $("previewHtml").textContent = merge ? built.waLong : built.waMulti;
+}
+$("wa_merge")?.addEventListener("change", preview);
+
+$("copiarWA")?.addEventListener("click", async ()=>{
+  const built = (window.HRFMT?.buildAll ? window.HRFMT.buildAll(buildData()) : null);
+  if(!built) return;
+  const merge = $("wa_merge")?.checked ?? true;
+  const text = merge ? built.waLong : built.waMulti;
+  try{ await navigator.clipboard.writeText(text); alert("Copiado para WhatsApp"); return; }catch{}
+  try{
+    const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.left="-9999px";
+    document.body.appendChild(ta); ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+    const ok=document.execCommand("copy"); document.body.removeChild(ta);
+    if(ok){ alert("Copiado para WhatsApp"); return; }
+  }catch{}
+  alert("No pude copiar automáticamente. Seleccioná y copiá con Ctrl+C.");
+});
 
   // ====== Casos ======
   const getCases=()=>{ try{ return JSON.parse(localStorage.getItem(CASEKEY)||"[]"); }catch{ return []; } };
