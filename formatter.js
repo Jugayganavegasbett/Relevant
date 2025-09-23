@@ -1,13 +1,10 @@
-// formatter.js — V9 (mejorado: formato personas + sin subrayado)
+// formatter.js — V9 (mejorado: formato personas + sin subrayado + multi-Word)
 window.HRFMT = (function () {
   const titleCase = (s)=> (s||"").toLowerCase().replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi, (_,a,b)=> a.toUpperCase()+b);
   const nonEmpty = (x)=> (x??"").toString().trim().length>0;
-  const oneLineForWA = (t)=> (t||"")
-    .replace(/\s*\n+\s*/g," ")
-    .replace(/[ \t]{2,}/g," ")
-    .trim();
+  const oneLineForWA = (t)=> (t||"").replace(/\s*\n+\s*/g," ").replace(/[ \t]{2,}/g," ").trim();
 
-  // ===> NUEVO: formatea como **_Nombre Apellido (edad, domicilio)_**
+  // **_Nombre Apellido (edad, domicilio)_**
   const niceName = (p)=>{
     const n = titleCase(p?.nombre||"");
     const a = titleCase(p?.apellido||"");
@@ -17,7 +14,6 @@ window.HRFMT = (function () {
     const domBits = [p?.calle_domicilio, p?.loc_domicilio].map(x=> titleCase(x||"")).filter(Boolean);
     if (domBits.length) parts.push(domBits.join(", "));
     const paren = parts.length ? ` (${parts.join(", ")})` : "";
-    // bold+italic en WA: *_
     return full ? `*_${full}${paren}_*` : "";
   };
 
@@ -41,16 +37,9 @@ window.HRFMT = (function () {
     const objList=(cat)=> objs.filter(o=> (o.vinculo||"").toLowerCase()===cat).map(o=>o.descripcion);
     let texto=raw||"";
     const ROLES="victima|imputado|sindicado|denunciante|testigo|pp|aprehendido|detenido|menor|nn|interviniente|damnificado institucional";
-
-    // personas por rol:index
-    texto = texto.replace(new RegExp(`#(${ROLES}):(\\d+)`,"gi"),(_,r,i)=>{
-      const p=personBy(r.toLowerCase(),i); return p? niceName(p): `#${r}:${i}`;
-    });
-    // #pf:i y #pf
+    texto = texto.replace(new RegExp(`#(${ROLES}):(\\d+)`,"gi"),(_,r,i)=>{ const p=personBy(r.toLowerCase(),i); return p? niceName(p): `#${r}:${i}`; });
     texto = texto.replace(/#pf:(\d+)/gi,(_,i)=>{ const p=pfBy(i); return p? niceName(p): `#pf:${i}`; });
     texto = texto.replace(/#pf\b/gi, ()=> fza.length? niceName(fza[0]) : "#pf");
-
-    // objetos
     ["secuestro","sustraccion","hallazgo","otro"].forEach(cat=>{
       const reIdx=new RegExp(`#${cat}:(\\d+)`,"gi");
       texto=texto.replace(reIdx,(_,i)=>{ const arr=objList(cat); const o=arr[+i]; return o? `_${o}_`:`#${cat}:${i}`; });
@@ -79,14 +68,13 @@ window.HRFMT = (function () {
     };
   }
 
-  // ===> SIN subrayado (antes subrayaba los textos en cursiva)
+  // ===== Word: un caso =====
   async function downloadDocx(snap, lib){
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
     const JUST=AlignmentType.JUSTIFIED;
     const built=buildAll(snap);
 
-    // mini parser de * y _
     function mdRuns(str){
       const parts=(str||"").split(/(\*|_)/g);
       let B=false,I=false; const out=[];
@@ -94,7 +82,7 @@ window.HRFMT = (function () {
         if(p==="*"){ B=!B; continue; }
         if(p==="_"){ I=!I; continue; }
         if(!p) continue;
-        out.push(new TextRun({ text:p, bold:B, italics:I })); // <- sin underline
+        out.push(new TextRun({ text:p, bold:B, italics:I })); // sin subrayado
       }
       return out;
     }
@@ -119,6 +107,53 @@ window.HRFMT = (function () {
     a.click();
   }
 
+  // ===== Word: varios casos en un solo archivo =====
+  async function downloadDocxMulti(snaps, lib, opts={}){
+    const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
+    if(!Document) throw new Error("docx no cargada");
+    const JUST=AlignmentType.JUSTIFIED;
+
+    function mdRuns(str){
+      const parts=(str||"").split(/(\*|_)/g);
+      let B=false,I=false; const out=[];
+      for(const p of parts){
+        if(p==="*"){ B=!B; continue; }
+        if(p==="_"){ I=!I; continue; }
+        if(!p) continue;
+        out.push(new TextRun({ text:p, bold:B, italics:I }));
+      }
+      return out;
+    }
+
+    const sectionsChildren=[];
+    (snaps||[]).forEach((snap, idx)=>{
+      const built = buildAll(snap);
+      // Título
+      sectionsChildren.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.titulo, bold:true}) ] }));
+      if(built.forDocx.subtitulo){
+        sectionsChildren.push(new Paragraph({ children:[ new TextRun({text:built.forDocx.subtitulo, bold:true, color:built.forDocx.color}) ] }));
+      }
+      // Cuerpo
+      (built.forDocx.bodyHtml||"").split(/\n\n+/).forEach(p=>{
+        sectionsChildren.push(new Paragraph({ children: mdRuns(p), alignment: JUST, spacing:{after:200} }));
+      });
+      // Separador: un vacío entre casos (sin salto de página)
+      if (idx < snaps.length-1){
+        sectionsChildren.push(new Paragraph({ children:[ new TextRun({ text:"" }) ], spacing:{after:300} }));
+      }
+    });
+
+    const doc=new Document({
+      styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
+      sections:[{ children: sectionsChildren }]
+    });
+    const blob=await Packer.toBlob(doc);
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`Hechos_${new Date().toISOString().slice(0,10)}.docx`;
+    a.click();
+  }
+
   function downloadCSV(list){
     const rows=[];
     rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"].join(","));
@@ -134,5 +169,5 @@ window.HRFMT = (function () {
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
 
-  return { buildAll, downloadDocx, downloadCSV };
+  return { buildAll, downloadDocx, downloadDocxMulti, downloadCSV };
 })();
