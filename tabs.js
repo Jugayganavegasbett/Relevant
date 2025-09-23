@@ -5,8 +5,9 @@
   }
   document.addEventListener("click",(e)=>{
     const b=e.target.closest(".tab"); if(!b) return;
-    if (b.id === "adminToggle") return; // manejado en app.js
+    if (b.id === "adminToggle") return; // el botón Admin lo maneja app.js
     activate(b.dataset.target);
   });
   activate("tab-generales");
 })();
+
