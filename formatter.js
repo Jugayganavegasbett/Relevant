@@ -184,27 +184,78 @@ window.HRFMT = (function () {
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
 
-  function downloadXLSX(list){
-    if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
-    const rows = [];
-    rows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"]);
-    (list||[]).forEach(s=>{
-      const g=s.generales||{};
-      rows.push([
-        s.name||"", g.fecha_hora||"", g.tipoExp||"", g.numExp||"",
-        g.partido||"", g.localidad||"", g.dependencia||"",
-        g.caratula||"", g.subtitulo||"", (s.cuerpo||"")
+function downloadXLSX(list){
+  if (typeof XLSX === "undefined") throw new Error("XLSX no cargado");
+
+  // ===== Hoja 1: Hechos (con etiquetas expandidas)
+  const hechosRows = [];
+  hechosRows.push(["Nombre","Fecha","Tipo","Número","Partido","Localidad","Dependencia","Carátula","Subtítulo","Cuerpo"]);
+  (list||[]).forEach(s=>{
+    const g = s.generales || {};
+    hechosRows.push([
+      s.name || "",
+      g.fecha_hora || "",
+      g.tipoExp || "",
+      g.numExp || "",
+      g.partido || "",
+      g.localidad || "",
+      g.dependencia || "",
+      g.caratula || "",
+      g.subtitulo || "",
+      // Cuerpo con etiquetas ya expandidas (#victima:0 -> Nombre Apellido...)
+      expandTags(s, s.cuerpo || "")
+    ]);
+  });
+
+  // ===== Hoja 2: Personas (Civiles + Fuerzas) con Hecho, Fecha, Dependencia y Carátula
+  const personasRows = [];
+  personasRows.push(["Hecho","Fecha","Dependencia","Carátula","Vínculo","Nombre","Apellido","Edad"]);
+  (list||[]).forEach(s=>{
+    const g = s.generales || {};
+    const addPersona = (p)=>{
+      personasRows.push([
+        s.name || "",
+        g.fecha_hora || "",
+        titleCase(g.dependencia || ""),
+        titleCase(g.caratula || ""),
+        (p.vinculo || "").toString(),
+        titleCase(p.nombre || ""),
+        titleCase(p.apellido || ""),
+        (p.edad || "").toString()
       ]);
-    });
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [
-      {wch:30},{wch:10},{wch:6},{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:18},{wch:80}
-    ];
-    XLSX.utils.book_append_sheet(wb, ws, "Hechos");
-    const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
-    XLSX.writeFile(wb, `hechos_${ts}.xlsx`, { compression: true });
-  }
+    };
+    (s.civiles || []).forEach(addPersona);
+    (s.fuerzas || []).forEach(addPersona);
+  });
+
+  // ===== Armar workbook
+  const wb = XLSX.utils.book_new();
+
+  // Hoja Hechos
+  const wsHechos = XLSX.utils.aoa_to_sheet(hechosRows);
+  wsHechos['!cols'] = [
+    {wch:30},{wch:10},{wch:6},{wch:10},{wch:22},{wch:18},{wch:28},{wch:22},{wch:18},{wch:80}
+  ];
+  XLSX.utils.book_append_sheet(wb, wsHechos, "Hechos");
+
+  // Hoja Personas
+  const wsPersonas = XLSX.utils.aoa_to_sheet(personasRows);
+  wsPersonas['!cols'] = [
+    {wch:30}, // Hecho
+    {wch:10}, // Fecha
+    {wch:28}, // Dependencia
+    {wch:22}, // Carátula
+    {wch:16}, // Vínculo
+    {wch:20}, // Nombre
+    {wch:20}, // Apellido
+    {wch:6}   // Edad
+  ];
+  XLSX.utils.book_append_sheet(wb, wsPersonas, "Personas");
+
+  // Guardar archivo
+  const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+  XLSX.writeFile(wb, `hechos_${ts}.xlsx`, { compression: true });
+}
 
   return { buildAll, downloadDocx, downloadDocxMulti, downloadCSV, downloadXLSX };
 })();
