@@ -50,3 +50,4 @@ textarea.body-textarea{ min-height:220px; }
 .table th,.table td{ border-bottom:1px solid var(--line); padding:8px; font-size:14px; text-align:left; }
 .table thead th{ position:sticky; top:0; background:#0e1628; z-index:1; }
 .spacer{ flex:1; }
+
