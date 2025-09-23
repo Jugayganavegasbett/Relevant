@@ -568,12 +568,11 @@ async function ensureXLSX(){
     "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
     "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js",
     "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
-    // Copia local (creá este archivo, ver paso 2)
+    // Copia local (crear archivo, ver paso 2)
     "vendor/xlsx.full.min.js"
   ];
 
   for (const src of SOURCES){
-    // Consola para diagnosticar si algo falla
     try { console.log("[XLSX] intentando cargar:", src); } catch {}
     const ok = await loadScript(src);
     if (ok) return true;
