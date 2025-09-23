@@ -544,14 +544,42 @@ window.addEventListener("DOMContentLoaded", () => {
     try{ window.HRFMT.downloadCSV(list); }catch(e){ alert("No se pudo exportar CSV: "+e.message); }
   });
 
-  // ====== Exportar Excel (XLSX listo)
-  $("exportXLSX")?.addEventListener("click", ()=>{
-    const ids=selectedChecks();
-    const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
-    if (!list.length){ alert("Nada para exportar"); return; }
-    if (!window.XLSX){ alert("Falta incluir SheetJS (xlsx.full.min.js)"); return; }
-    try{ window.HRFMT.downloadXLSX(list); }catch(e){ alert("No se pudo exportar XLSX: "+e.message); }
+ // ====== Exportar Excel (XLSX listo, con carga bajo demanda)
+async function ensureXLSX(){
+  if (window.XLSX) return true;
+  // 1er intento: jsDelivr
+  const ok1 = await new Promise(res=>{
+    const s=document.createElement('script');
+    s.src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js";
+    s.onload=()=>res(true); s.onerror=()=>res(false);
+    document.head.appendChild(s);
   });
+  if (ok1 && window.XLSX) return true;
+
+  // 2do intento: cdnjs
+  const ok2 = await new Promise(res=>{
+    const s=document.createElement('script');
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js";
+    s.onload=()=>res(true); s.onerror=()=>res(false);
+    document.head.appendChild(s);
+  });
+  return !!window.XLSX;
+}
+
+$("exportXLSX")?.addEventListener("click", async ()=>{
+  const ids=selectedChecks();
+  const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
+  if (!list.length){ alert("Nada para exportar"); return; }
+
+  const ok = await ensureXLSX();
+  if (!ok){ alert("No se pudo cargar SheetJS (XLSX). Verificá tu conexión e intentá de nuevo."); return; }
+
+  try{
+    window.HRFMT.downloadXLSX(list);
+  }catch(e){
+    alert("No se pudo exportar XLSX: "+e.message);
+  }
+});
 
   // ====== Catálogos (Admin)
   function loadCatEditor(){
