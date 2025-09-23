@@ -1,5 +1,4 @@
-// app.js — v9 PRO: Admin PIN + tags reales + catálogos robustos
-
+// app.js — v9 PRO FIX: Admin PIN + tags + catálogos y utilidades
 window.addEventListener("DOMContentLoaded", () => {
   const $  = (id)=>document.getElementById(id);
   const val= (id)=>($(id)?.value ?? "");
@@ -9,22 +8,41 @@ window.addEventListener("DOMContentLoaded", () => {
       .replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi,(_,a,b)=>a.toUpperCase()+b);
 
   // ====== ADMIN (PIN simple) ======
-  // Cambiá el PIN acá si querés
   const ADMIN_PIN = "1234";
   const ADMIN_KEY = "hr_admin_enabled_v9";
 
   function isAdmin(){ return sessionStorage.getItem(ADMIN_KEY)==="1"; }
+  function setAdmin(on){
+    sessionStorage.setItem(ADMIN_KEY, on? "1":"0");
+    applyAdminUI();
+  }
   function ensureAdmin(){
     if (isAdmin()) return true;
     const pin = prompt("PIN de administrador:");
     if (pin === ADMIN_PIN){
-      sessionStorage.setItem(ADMIN_KEY,"1");
+      setAdmin(true);
       alert("Modo administrador habilitado.");
       return true;
     }
     alert("PIN incorrecto.");
     return false;
   }
+  function applyAdminUI(){
+    const on = isAdmin();
+    document.querySelectorAll(".adminOnly").forEach(el=>{
+      el.disabled = !on;
+      el.classList.toggle("ghost", !on);
+    });
+    const st = $("adminStatus");
+    if (st) st.textContent = on? "🔓 Admin ON" : "🔒 Admin OFF";
+  }
+  $("adminToggle")?.addEventListener("click", ()=>{
+    if (!isAdmin()){
+      ensureAdmin();
+    } else {
+      if (confirm("¿Desactivar modo administrador?")) setAdmin(false);
+    }
+  });
 
   // ====== Storage keys ======
   const CASEKEY = "hr_cases_v9";
@@ -120,6 +138,8 @@ window.addEventListener("DOMContentLoaded", () => {
     const pos = (before + ins).length;
     ta.setSelectionRange(pos,pos);
     ta.focus();
+    renderTitlePreview(); // para mantener coherencia
+    preview();
   }
 
   // ====== Stores y listas ======
@@ -240,7 +260,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     if(!chips.length){
-      box.innerHTML = `<span class="muted">Cargá personas/objetos para ver etiquetas…</span>`;
+      box.innerHTML = `<span class="muted">Cargá personas/objetos y tocá para insertar etiquetas…</span>`;
       return;
     }
     box.innerHTML = chips.map(t=>`<button type="button" class="chip" data-tag="${t}">${t}</button>`).join("");
@@ -265,7 +285,8 @@ window.addEventListener("DOMContentLoaded", () => {
         tipoExp: tipo, numExp: num, pu: num? `${tipo} ${num}` : "",
         partido: val("g_partido"), localidad: val("g_localidad"), dependencia: resolvedDep(),
         caratula: val("g_car").trim(), subtitulo: val("g_sub").trim(), esclarecido: val("g_ok")==="si",
-        ufi: val("g_ufi").trim(), coordenadas: val("g_coord").trim()
+        ufi: val("g_ufi").trim(), coordenadas: val("g_coord").trim(),
+        relevante: $("g_relevante")?.checked || false, supervisado: $("g_supervisado")?.checked || false
       },
       civiles: CIV.store.slice(),
       fuerzas: FZA.store.slice(),
@@ -285,7 +306,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (built && $("previewHtml")) $("previewHtml").textContent = built.waLong;
   }
 
-  // ====== Casos (solo lo básico necesario para ahora) ======
+  // ====== Casos ======
   const getCases=()=>{ try{ return JSON.parse(localStorage.getItem(CASEKEY)||"[]"); }catch{ return []; } };
   const setCases=(a)=> localStorage.setItem(CASEKEY, JSON.stringify(a));
   const freshId=()=> "c_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
@@ -308,13 +329,13 @@ window.addEventListener("DOMContentLoaded", () => {
         <td>${c.generales?.dependencia||""}</td>
       </tr>`).join("")
     }</tbody></table></div>`;
-    // buscador
     const input=$("caseSearch");
     if(input){
       input.oninput=()=>{ const q=input.value.toLowerCase(); box.querySelectorAll("tbody tr").forEach(tr=> tr.style.display = tr.textContent.toLowerCase().includes(q)? "":"none"); };
     }
   }
   const selectedRadio = ()=>{ const r=document.querySelector('input[name="caseSel"]:checked'); return r?r.getAttribute("data-id"):null; };
+  const selectedChecks = ()=> Array.from(document.querySelectorAll(".caseCheck:checked")).map(c=> c.getAttribute("data-id"));
 
   // ====== Bind de inputs que afectan título/preview ======
   $("g_partido")?.addEventListener("change", ()=>{ loadLocalidadesDeps(); renderTitlePreview(); });
@@ -362,6 +383,49 @@ window.addEventListener("DOMContentLoaded", () => {
     const id=selectedRadio(); if(!id){ alert("Elegí un hecho (radio)."); return; }
     const out=getCases().filter(c=>c.id!==id); setCases(out); renderCases(); alert("Borrado.");
   });
+  $("loadSelected")?.addEventListener("click", ()=>{
+    const id=selectedRadio(); if(!id){ alert("Elegí un hecho (radio)."); return; }
+    const c=getCases().find(x=>x.id===id); if(!c){ alert("No encontrado"); return; }
+    // cargar datos básicos
+    setv("g_car", c.generales?.caratula||"");
+    setv("g_sub", c.generales?.subtitulo||"");
+    setv("g_numExp", c.generales?.numExp||"");
+    setv("g_tipoExp", c.generales?.tipoExp||"PU");
+    setv("g_coord", c.generales?.coordenadas||"");
+    setv("g_ufi", c.generales?.ufi||"");
+    // fecha
+    if (c.generales?.fecha_hora){
+      const [dd,mm,yy] = c.generales.fecha_hora.split("-");
+      const iso = `${yy}-${mm}-${dd}`;
+      setv("g_fecha_dia", iso);
+    }
+    // partido/localidad/dep
+    setv("g_partido", c.generales?.partido||"");
+    loadLocalidadesDeps();
+    setv("g_localidad", c.generales?.localidad||"");
+    if (c.generales?.dependencia && c.generales.dependencia!=="__manual__"){
+      setv("g_dep", c.generales.dependencia);
+    }
+    setv("cuerpo", c.cuerpo||"");
+    CIV.store = Array.isArray(c.civiles)? c.civiles: [];
+    FZA.store = Array.isArray(c.fuerzas)? c.fuerzas: [];
+    OBJ.store = Array.isArray(c.objetos)? c.objetos: [];
+    CIV.render(); FZA.render(); OBJ.render(); renderTagHelper(); renderTitlePreview(); preview();
+  });
+
+  // Multi exportaciones
+  $("exportCSV")?.addEventListener("click", ()=>{
+    const ids=selectedChecks();
+    const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
+    if (!window.HRFMT?.downloadCSV){ alert("formatter.js sin CSV"); return; }
+    HRFMT.downloadCSV(list);
+  });
+  $("downloadWordMulti")?.addEventListener("click", async ()=>{
+    const ids=selectedChecks();
+    const list = ids.length? getCases().filter(c=> ids.includes(c.id)) : [ buildData() ];
+    if (!window.HRFMT?.downloadDocx){ alert("formatter.js no cargado"); return; }
+    for (const snap of list){ await HRFMT.downloadDocx(snap, (window.docx||{})); }
+  });
 
   // ====== Catálogos (ADMIN) ======
   $("cat_agregarPartido")?.addEventListener("click", ()=>{
@@ -393,10 +457,23 @@ window.addEventListener("DOMContentLoaded", () => {
     setCatalogs(DEFAULT_CATALOGS); fillPartidos(); loadLocalidadesDeps(); loadCatEditor();
     alert("Catálogos restaurados.");
   });
+  $("cat_eliminarPartido")?.addEventListener("click", ()=>{
+    if(!ensureAdmin()) return;
+    const partido=val("cat_partidoSel"); if(!partido){ alert("Elegí un partido."); return; }
+    if(!confirm(`¿Eliminar el partido “${partido}” del catálogo?`)) return;
+    const cat=getCatalogs();
+    delete cat[partido];
+    setCatalogs(cat); fillPartidos(); loadLocalidadesDeps(); loadCatEditor();
+    alert("Partido eliminado.");
+  });
   function loadCatEditor(){
     const cat=getCatalogs();
     const p = val("cat_partidoSel") || Object.keys(cat)[0];
-    if(!p||!cat[p]) return;
+    if(!p||!cat[p]){
+      setv("cat_localidades","");
+      setv("cat_dependencias","");
+      return;
+    }
     setv("cat_localidades",(cat[p].localidades||[]).join("\n"));
     setv("cat_dependencias",(cat[p].dependencias||[]).join("\n"));
   }
@@ -408,4 +485,5 @@ window.addEventListener("DOMContentLoaded", () => {
   renderTagHelper();
   renderTitlePreview(); preview();
   loadCatEditor();
+  applyAdminUI();
 });
