@@ -13,6 +13,7 @@
     <h1>Hechos Relevantes</h1>
     <div class="subtitle">v9 PRO — DDIC</div>
   </div>
+  <div class="admin-status" id="adminStatus" title="Estado de Admin">🔒 Admin OFF</div>
 </header>
 
 <main class="container">
@@ -70,7 +71,7 @@
     <div class="card">
       <div class="row sb">
         <h2>Cuerpo del hecho</h2>
-        <div class="muted">Etiquetas: #victima:0 #imputado:0 #secuestro #sustraccion #hallazgo #otro #pf:0</div>
+        <div class="muted">Etiquetas: #victima:0 #imputado:0 #sustraccion #secuestro #hallazgo #otro #pf:0</div>
       </div>
       <div id="tagHelper" class="chips"></div>
       <textarea id="cuerpo" class="body-textarea" placeholder="Escribí el cuerpo del hecho aquí..."></textarea>
@@ -181,8 +182,9 @@
       <div class="row actions">
         <button class="btn primary adminOnly" id="cat_guardar" disabled>Guardar catálogo</button>
         <button class="btn adminOnly" id="cat_reset" disabled>Restaurar ejemplo</button>
+        <button class="btn danger adminOnly" id="cat_eliminarPartido" disabled>Eliminar partido</button>
       </div>
-      <p class="muted">Los catálogos se guardan localmente (navegador). Funciones sensibles solo en modo Admin.</p>
+      <p class="muted">Para eliminar localidades/dependencias: borrá la línea y presioná “Guardar catálogo”. Funciones sensibles solo en modo Admin.</p>
     </div>
   </section>
 
