@@ -1,14 +1,24 @@
-// formatter.js — V9 (con mejoras)
+// formatter.js — V9 (mejorado: formato personas + sin subrayado)
 window.HRFMT = (function () {
   const titleCase = (s)=> (s||"").toLowerCase().replace(/\b([a-záéíóúñü])([a-záéíóúñü]*)/gi, (_,a,b)=> a.toUpperCase()+b);
   const nonEmpty = (x)=> (x??"").toString().trim().length>0;
-  const oneLineForWA = (t)=> (t||"").replace(/\s*\n+\s*/g," ").replace(/[ \t]{2,}/g," ").trim();
+  const oneLineForWA = (t)=> (t||"")
+    .replace(/\s*\n+\s*/g," ")
+    .replace(/[ \t]{2,}/g," ")
+    .trim();
+
+  // ===> NUEVO: formatea como **_Nombre Apellido (edad, domicilio)_**
   const niceName = (p)=>{
-    const n=titleCase(p?.nombre||""); const a=titleCase(p?.apellido||"");
-    const age = p?.edad ? ` (${p.edad})` : "";
-    const dom = (p?.calle_domicilio||p?.loc_domicilio) ? ` – ${titleCase([p.calle_domicilio, p.loc_domicilio].filter(Boolean).join(", "))}` : "";
-    const full=[n,a].filter(Boolean).join(" ");
-    return full ? `*_${full}${age}${dom}_*` : "";
+    const n = titleCase(p?.nombre||"");
+    const a = titleCase(p?.apellido||"");
+    const full = [n,a].filter(Boolean).join(" ");
+    const parts = [];
+    if (p?.edad && String(p.edad).trim()) parts.push(String(p.edad).trim());
+    const domBits = [p?.calle_domicilio, p?.loc_domicilio].map(x=> titleCase(x||"")).filter(Boolean);
+    if (domBits.length) parts.push(domBits.join(", "));
+    const paren = parts.length ? ` (${parts.join(", ")})` : "";
+    // bold+italic en WA: *_
+    return full ? `*_${full}${paren}_*` : "";
   };
 
   function buildTitulo(d){
@@ -31,9 +41,16 @@ window.HRFMT = (function () {
     const objList=(cat)=> objs.filter(o=> (o.vinculo||"").toLowerCase()===cat).map(o=>o.descripcion);
     let texto=raw||"";
     const ROLES="victima|imputado|sindicado|denunciante|testigo|pp|aprehendido|detenido|menor|nn|interviniente|damnificado institucional";
-    texto = texto.replace(new RegExp(`#(${ROLES}):(\\d+)`,"gi"),(_,r,i)=>{ const p=personBy(r.toLowerCase(),i); return p? niceName(p): `#${r}:${i}`; });
+
+    // personas por rol:index
+    texto = texto.replace(new RegExp(`#(${ROLES}):(\\d+)`,"gi"),(_,r,i)=>{
+      const p=personBy(r.toLowerCase(),i); return p? niceName(p): `#${r}:${i}`;
+    });
+    // #pf:i y #pf
     texto = texto.replace(/#pf:(\d+)/gi,(_,i)=>{ const p=pfBy(i); return p? niceName(p): `#pf:${i}`; });
     texto = texto.replace(/#pf\b/gi, ()=> fza.length? niceName(fza[0]) : "#pf");
+
+    // objetos
     ["secuestro","sustraccion","hallazgo","otro"].forEach(cat=>{
       const reIdx=new RegExp(`#${cat}:(\\d+)`,"gi");
       texto=texto.replace(reIdx,(_,i)=>{ const arr=objList(cat); const o=arr[+i]; return o? `_${o}_`:`#${cat}:${i}`; });
@@ -62,18 +79,22 @@ window.HRFMT = (function () {
     };
   }
 
+  // ===> SIN subrayado (antes subrayaba los textos en cursiva)
   async function downloadDocx(snap, lib){
     const { Document,Packer,Paragraph,TextRun,AlignmentType }=lib||{};
     if(!Document) throw new Error("docx no cargada");
-    const JUST=AlignmentType.JUSTIFIED; const built=buildAll(snap);
+    const JUST=AlignmentType.JUSTIFIED;
+    const built=buildAll(snap);
 
+    // mini parser de * y _
     function mdRuns(str){
-      const parts=(str||"").split(/(\*|_)/g); let B=false,I=false; const out=[];
+      const parts=(str||"").split(/(\*|_)/g);
+      let B=false,I=false; const out=[];
       for(const p of parts){
         if(p==="*"){ B=!B; continue; }
         if(p==="_"){ I=!I; continue; }
         if(!p) continue;
-        out.push(new TextRun({text:p,bold:B,italics:I,underline:I?{}:undefined}));
+        out.push(new TextRun({ text:p, bold:B, italics:I })); // <- sin underline
       }
       return out;
     }
@@ -91,7 +112,6 @@ window.HRFMT = (function () {
       styles:{ default:{ document:{ run:{ font:"Arial", size:24 } } } },
       sections:[{ children }]
     });
-
     const blob=await Packer.toBlob(doc);
     const a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -114,6 +134,5 @@ window.HRFMT = (function () {
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="hechos.csv"; a.click();
   }
 
-  // API pública
   return { buildAll, downloadDocx, downloadCSV };
 })();
