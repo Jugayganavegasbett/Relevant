@@ -15,7 +15,7 @@ window.HRFMT = (function () {
     const g=d.generales||{};
     const f=g.fecha_hora||"";
     const dep=titleCase(g.dependencia||"");
-    const car=titleCase(g.caratula||"");
+    aconst car=titleCase(g.caratula||"");
     const tipo=g.tipoExp||"PU"; const num=(g.numExp||"").trim();
     const parts=[]; if(f) parts.push(f);
     if(num){ parts.push(`${tipo} ${num}`); if(dep) parts.push(dep); if(car) parts.push(car); }
