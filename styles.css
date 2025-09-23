@@ -8,6 +8,7 @@ html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); font-fa
 .topbar{ display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); background:#0b1222; position:sticky; top:0; z-index:5; }
 .app-title h1{ margin:0; font-size:20px; }
 .app-title .subtitle{ color:var(--muted); font-size:12px; }
+.admin-status{ font-size:12px; color:var(--muted); }
 
 .container{ max-width:1100px; margin:16px auto; padding:0 12px; }
 
